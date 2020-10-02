@@ -28,13 +28,13 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     _hInstance = hInstance;
 
     // The main window class name.
-    const wchar_t szWindowClass[] = L"Win32DesktopApp";
+    const wchar_t windowClassName[] = L"KnotDesktopApp";
     WNDCLASSEX windowClass = { };
 
     windowClass.cbSize = sizeof(WNDCLASSEX);
     windowClass.lpfnWndProc = WindowProc;
     windowClass.hInstance = hInstance;
-    windowClass.lpszClassName = szWindowClass;
+    windowClass.lpszClassName = windowClassName;
     windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
     windowClass.hIconSm = LoadIcon(windowClass.hInstance, IDI_APPLICATION);
@@ -46,7 +46,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     }
 
     _hWnd = CreateWindow(
-        szWindowClass,
+        windowClassName,
         L"Windows c++ Win32 Desktop App",
         WS_OVERLAPPEDWINDOW | WS_VISIBLE,
         CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
