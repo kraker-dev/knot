@@ -27,9 +27,18 @@
     <ClInclude Include="knot.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="NotificationIcon.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Result.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="knot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="NotificationAPI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

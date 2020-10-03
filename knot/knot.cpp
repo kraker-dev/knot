@@ -9,31 +9,63 @@
 #include <winrt/windows.ui.xaml.controls.h>
 #include <winrt/Windows.ui.xaml.media.h>
 
+#include "NotificationIcon.h"
+#include "Result.h"
+
 using namespace winrt;
 using namespace Windows::UI;
 using namespace Windows::UI::Composition;
 using namespace Windows::UI::Xaml::Hosting;
 using namespace Windows::Foundation::Numerics;
 
+using namespace knot::UI;
+
 LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
 
-HWND _hWnd;
-HWND _childhWnd;
-// This HWND will be the window handler for the XAML Island: A child window that contains XAML.  
-HWND hWndXamlIsland = nullptr;
+// The main window class name.
+const wchar_t windowClassName[] = L"KnotDesktopApp";
+
+HWND _hWnd = nullptr;
+HWND _childhWnd = nullptr;
+HWND _hWndXamlIsland = nullptr;
 HINSTANCE _hInstance;
+
+DesktopWindowXamlSource desktopSource; //TODO: Move XAML into a separate class and make it the primary way to create UI.
+
+Win32Err CreateMainWindow(HWND& mainHWnd);
+HRESULT InitXamlIsland(HWND hwnd, HWND& xamlhWnd, DesktopWindowXamlSource& desktopsource);
 
 int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
 {
     _hInstance = hInstance;
 
-    // The main window class name.
-    const wchar_t windowClassName[] = L"KnotDesktopApp";
+    Win32Err_RETURN_IF_FAILED(CreateMainWindow(_hWnd));
+    RETURN_IF_FAILED(InitXamlIsland(_hWnd, _hWndXamlIsland, desktopSource));
+
+    NotificationIcon notifyIcon(hInstance, _hWnd);
+    Win32Err_RETURN_IF_FAILED(notifyIcon.CreateNotificationIcon());
+
+    ShowWindow(_hWnd, nCmdShow);
+    UpdateWindow(_hWnd);
+
+    //Message loop:
+    MSG msg = { };
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    return 0;
+}
+
+Win32Err CreateMainWindow(HWND& reshWnd)
+{
     WNDCLASSEX windowClass = { };
 
     windowClass.cbSize = sizeof(WNDCLASSEX);
     windowClass.lpfnWndProc = WindowProc;
-    windowClass.hInstance = hInstance;
+    windowClass.hInstance = _hInstance;
     windowClass.lpszClassName = windowClassName;
     windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
@@ -42,26 +74,30 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     if (RegisterClassEx(&windowClass) == NULL)
     {
         MessageBox(NULL, L"Windows registration failed!", L"Error", NULL);
-        return 0;
+        return NULL;
     }
 
-    _hWnd = CreateWindow(
+    reshWnd = CreateWindow(
         windowClassName,
-        L"Windows c++ Win32 Desktop App",
+        L"Knot | Create your notes anywhere",
         WS_OVERLAPPEDWINDOW | WS_VISIBLE,
         CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
         NULL,
         NULL,
-        hInstance,
+        _hInstance,
         NULL
     );
-    if (_hWnd == NULL)
+    if (reshWnd == NULL)
     {
         MessageBox(NULL, L"Call to CreateWindow failed!", L"Error", NULL);
-        return 0;
+        return GetLastError();
     }
 
+    return ERROR_SUCCESS;
+}
 
+HRESULT InitXamlIsland(HWND hwnd, HWND& xamlhWnd, DesktopWindowXamlSource& desktopsource)
+{
     // Begin XAML Island section.
 
     // The call to winrt::init_apartment initializes COM; by default, in a multithreaded apartment.
@@ -70,23 +106,20 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     // Initialize the XAML framework's core window for the current thread.
     WindowsXamlManager winxamlmanager = WindowsXamlManager::InitializeForCurrentThread();
 
-    // This DesktopWindowXamlSource is the object that enables a non-UWP desktop application 
-    // to host UWP controls in any UI element that is associated with a window handle (HWND).
-    DesktopWindowXamlSource desktopSource;
-
     // Get handle to the core window.
     auto interop = desktopSource.as<IDesktopWindowXamlSourceNative>();
 
     // Parent the DesktopWindowXamlSource object to the current window.
-    check_hresult(interop->AttachToWindow(_hWnd));
-
+    RETURN_IF_FAILED (interop->AttachToWindow(hwnd));
+    HWND xamlWindow;
     // Get the new child window's HWND. 
-    interop->get_WindowHandle(&hWndXamlIsland);
+    RETURN_IF_FAILED(interop->get_WindowHandle(&xamlWindow));
 
     // Update the XAML Island window size because initially it is 0,0.
     RECT rect = {};
-    GetClientRect(_hWnd, &rect);
-    SetWindowPos(hWndXamlIsland, 0, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_SHOWWINDOW);
+    GetClientRect(hwnd, &rect);
+    SetWindowPos(xamlWindow, 0, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_SHOWWINDOW);
+    xamlhWnd = xamlWindow;
 
     // Create the XAML content.
     Windows::UI::Xaml::Controls::StackPanel xamlContainer;
@@ -101,20 +134,7 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     xamlContainer.UpdateLayout();
     desktopSource.Content(xamlContainer);
 
-    // End XAML Island section.
-
-    ShowWindow(_hWnd, nCmdShow);
-    UpdateWindow(_hWnd);
-
-    //Message loop:
-    MSG msg = { };
-    while (GetMessage(&msg, NULL, 0, 0))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-
-    return 0;
+    return S_OK;
 }
 
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT messageCode, WPARAM wParam, LPARAM lParam)
@@ -141,10 +161,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT messageCode, WPARAM wParam, LPARAM l
         // area, and enumerate the child windows. Pass the
         // dimensions to the child windows during enumeration.
         GetClientRect(hWnd, &rcClient);
-        SetWindowPos(hWndXamlIsland, nullptr, rcClient.left, rcClient.top, rcClient.right - rcClient.left, rcClient.bottom - rcClient.top, SWP_NOZORDER);
-        MoveWindow(_childhWnd, 200, 200, 400, 500, TRUE);
-        ShowWindow(_childhWnd, SW_SHOW);
-
+        SetWindowPos(_hWndXamlIsland, nullptr, rcClient.left, rcClient.top, rcClient.right - rcClient.left, rcClient.bottom - rcClient.top, SWP_NOZORDER);
         return 0;
 
         // Process other messages.
